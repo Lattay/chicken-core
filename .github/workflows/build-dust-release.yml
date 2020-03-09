@@ -1,0 +1,50 @@
+name: Build the current master Chicken compiler
+on:
+    push:
+        tags:
+            - '*'
+jobs:
+    build:
+        name: Build
+        
+        strategy:
+            matrix:
+                runs-on: [ubuntu-latest]
+
+        runs-on: ${{ matrix.runs-on }}
+
+        steps:
+        - name: Checkout
+          uses: actions/checkout@v2
+
+        - name: Bootstrap in Ubuntu
+          if: matrix.runs-on == 'ubuntu-latest'
+          run: sh scripts/bootstrap.sh PLATFORM=linux
+
+        - name: Compile in Ubuntu
+          if: matrix.runs-on == 'ubuntu-latest'
+          run: make install PLATFORM=linux CHICKEN=./chicken-boot PREFIX=$(for i in $(seq 255); do echo -n x; done)
+
+        - name: Archive
+          run: tar -cvf chicken.tar.gz ./$(for i in $(seq 255); do echo -n x; done)/*
+
+        - name: Create Release
+          id: create_release
+          uses: actions/create-release@v1
+          env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+              tag_name: ${{ github.ref }}
+              release_name: Dust release ${{ github.ref }}
+              draft: false
+              prerelease: false
+
+        - name: Upload final build
+          uses: actions/upload-release-asset@v1
+          env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+              upload_url: ${{ steps.create_release.outputs.upload_url }}
+              asset_path: ./chicken.tar.gz
+              asset_name: chicken-${{ github.ref }}-x86_64-linux-gnu.tar.gz
+              asset_content_type: application/gzip
